@@ -1,0 +1,33 @@
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Your existing steps here...
+
+      - name: Debug DeepSource JSON report
+        run: |
+          echo "# DeepSource Issues Report" > report/issues.md
+          echo -e "\nGenerated on: $(date)\n" >> report/issues.md
+
+          echo "Checking if JSON file exists and content:"
+          if [[ -f report/deepsource-issues.json ]]; then
+            echo "File exists. Size:"
+            ls -lh report/deepsource-issues.json
+            
+            echo "File content preview (first 1000 characters):"
+            head -c 1000 report/deepsource-issues.json || echo "[File smaller than 1000 bytes]"
+            
+            echo "Trying to validate JSON format with jq:"
+            if jq empty report/deepsource-issues.json 2>/dev/null; then
+              echo "JSON is valid, proceeding with parsing."
+              jq -r '.results[] | "\n## Issue: \(.short_message)\n- Category: \(.category)\n- Severity: \(.severity)\n- File: \(.location.path)"' report/deepsource-issues.json >> report/issues.md
+            else
+              echo "JSON file is invalid or corrupted." >> report/issues.md
+              echo "Please check the JSON source step."
+            fi
+          else
+            echo "JSON file report/deepsource-issues.json does NOT exist." >> report/issues.md
+          fi
