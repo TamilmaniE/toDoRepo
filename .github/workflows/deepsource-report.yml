@@ -1,0 +1,46 @@
+name: DeepSource PDF Report Export
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  fetch-and-generate-pdf:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install markdown-pdf
+        run: |
+          npm install -g markdown-pdf
+          mkdir -p report
+
+      - name: Fetch DeepSource Issues via API
+        run: |
+          curl -s -H "Authorization: Token ${{ secrets.DEEPSOURCE_TOKEN }}" \
+            https://deepsource.io/api/v1/orgs/AnusuyaJay/repos/toDoRepo/issues/ \
+            -o report/deepsource-issues.json
+
+      - name: Convert JSON to Markdown
+        run: |
+          echo "# DeepSource Issues Report" > report/issues.md
+          echo "\nGenerated on: $(date)\n" >> report/issues.md
+          cat report/deepsource-issues.json | jq -r '.results[] | "\n## Issue: \(.short_message)\n- Category: \(.category)\n- Severity: \(.severity)\n- File: \(.location.path)"' >> report/issues.md
+
+      - name: Generate PDF from Markdown
+        run: |
+          markdown-pdf report/issues.md -o report/deepsource-issues.pdf
+
+      - name: Upload PDF report
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepsource-pdf-report
+          path: report/deepsource-issues.pdf
