@@ -1,46 +1,33 @@
-name: DeepSource PDF Report Export
-
-on:
-  workflow_dispatch:
-  push:
-    branches: [main]
-
 jobs:
-  fetch-and-generate-pdf:
+  build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
+      # Your existing steps here...
 
-      - name: Install markdown-pdf
-        run: |
-          npm install -g markdown-pdf
-          mkdir -p report
-
-      - name: Fetch DeepSource Issues via API
-        run: |
-          curl -s -H "Authorization: Token ${{ secrets.DEEPSOURCE_TOKEN }}" \
-            https://deepsource.io/api/v1/orgs/AnusuyaJay/repos/toDoRepo/issues/ \
-            -o report/deepsource-issues.json
-
-      - name: Convert JSON to Markdown
+      - name: Debug DeepSource JSON report
         run: |
           echo "# DeepSource Issues Report" > report/issues.md
-          echo "\nGenerated on: $(date)\n" >> report/issues.md
-          cat report/deepsource-issues.json | jq -r '.results[] | "\n## Issue: \(.short_message)\n- Category: \(.category)\n- Severity: \(.severity)\n- File: \(.location.path)"' >> report/issues.md
+          echo -e "\nGenerated on: $(date)\n" >> report/issues.md
 
-      - name: Generate PDF from Markdown
-        run: |
-          markdown-pdf report/issues.md -o report/deepsource-issues.pdf
-
-      - name: Upload PDF report
-        uses: actions/upload-artifact@v4
-        with:
-          name: deepsource-pdf-report
-          path: report/deepsource-issues.pdf
+          echo "Checking if JSON file exists and content:"
+          if [[ -f report/deepsource-issues.json ]]; then
+            echo "File exists. Size:"
+            ls -lh report/deepsource-issues.json
+            
+            echo "File content preview (first 1000 characters):"
+            head -c 1000 report/deepsource-issues.json || echo "[File smaller than 1000 bytes]"
+            
+            echo "Trying to validate JSON format with jq:"
+            if jq empty report/deepsource-issues.json 2>/dev/null; then
+              echo "JSON is valid, proceeding with parsing."
+              jq -r '.results[] | "\n## Issue: \(.short_message)\n- Category: \(.category)\n- Severity: \(.severity)\n- File: \(.location.path)"' report/deepsource-issues.json >> report/issues.md
+            else
+              echo "JSON file is invalid or corrupted." >> report/issues.md
+              echo "Please check the JSON source step."
+            fi
+          else
+            echo "JSON file report/deepsource-issues.json does NOT exist." >> report/issues.md
+          fi
